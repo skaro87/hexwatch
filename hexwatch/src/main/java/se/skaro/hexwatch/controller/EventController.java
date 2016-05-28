@@ -26,18 +26,17 @@ import se.skaro.hexwatch.data.repository.EventRepository;
 @RequestMapping("/events")
 public class EventController {
 
-	private static final Long ONE_DAY_MILLIS = 86400000L;
-	private static final int DEFAULT_DAYS_END = 28;
+	private static final Long END_DEFAULT_MILLIS = 2419200000L; //28 days
 
 	@Autowired
-	private EventRepository eventRepo;
+	private EventRepository repository;
 
 	// GET All Events
 	@RequestMapping(method = RequestMethod.GET)
 	public ResponseEntity<Map<String, List<Event>>> getAll(@RequestParam Optional<Long> start,
 			@RequestParam Optional<Long> end, @RequestParam Optional<String> user) {
 
-		List<Event> eventList = eventRepo.findEventsWithParams(getStartOptionalAsLong(start), getEndOptionalAsLong(end),
+		List<Event> eventList = repository.findEventsWithParams(getStartOptionalAsLong(start), getEndOptionalAsLong(end),
 				getStringOptionalAsString(user));
 		eventList.forEach(event -> {
 			addHATEOASLinks(event);
@@ -48,7 +47,7 @@ public class EventController {
 	// GET Event by ID
 	@RequestMapping(value = "/{id}", method = RequestMethod.GET)
 	public ResponseEntity<Event> getById(@PathVariable("id") Long id) {
-		Event event = eventRepo.findOne(id);
+		Event event = repository.findOne(id);
 		if (event != null) {
 			addHATEOASLinks(event);
 			return new ResponseEntity<>(event, HttpStatus.OK);
@@ -62,7 +61,7 @@ public class EventController {
 	public ResponseEntity<Map<String, List<Event>>> getAllTournaments(@RequestParam Optional<Long> start,
 			@RequestParam Optional<Long> end, @RequestParam Optional<String> user,
 			@RequestParam Optional<String> format) {
-		List<Event> events = eventRepo.findTournamentWithParams(getStartOptionalAsLong(start),
+		List<Event> events = repository.findTournamentWithParams(getStartOptionalAsLong(start),
 				getEndOptionalAsLong(end), getStringOptionalAsString(user), getStringOptionalAsString(format));
 
 		events.forEach(event -> {
@@ -77,12 +76,13 @@ public class EventController {
 	public ResponseEntity<Map<String, List<Event>>> getAllStreams(@RequestParam Optional<Long> start,
 			@RequestParam Optional<Long> end, @RequestParam Optional<String> user,
 			@RequestParam Optional<String> channel) {
-		List<Event> events = eventRepo.findStreamWithParams(getStartOptionalAsLong(start), getEndOptionalAsLong(end),
+		List<Event> events = repository.findStreamWithParams(getStartOptionalAsLong(start), getEndOptionalAsLong(end),
 				getStringOptionalAsString(user), getStringOptionalAsString(channel));
 
 		events.forEach(event -> {
 			addHATEOASLinks(event);
 			addHATEOASLinksEventType(event, "streams");
+			addHATEOASLinkTwitchChannel(event);
 		});
 		return new ResponseEntity<>(Collections.singletonMap("events", events), HttpStatus.OK);
 	}
@@ -92,7 +92,7 @@ public class EventController {
 	public ResponseEntity<Event> putTournament(@RequestParam String user, @RequestParam String format,
 			@RequestParam Long start, @RequestParam Long end, @RequestParam String description) {
 		Event event = new Event(start, end, user, description, null, "tournament", format);
-		event = eventRepo.save(event);
+		event = repository.save(event);
 		addHATEOASLinks(event);
 		return new ResponseEntity<>(event, HttpStatus.CREATED);
 	}
@@ -102,7 +102,7 @@ public class EventController {
 	public ResponseEntity<Event> putStream(@RequestParam String user, @RequestParam String channel,
 			@RequestParam Long start, @RequestParam Long end, @RequestParam String description) {
 		Event event = new Event(start, end, user, description, channel, "stream", null);
-		event = eventRepo.save(event);
+		event = repository.save(event);
 		addHATEOASLinks(event);
 		return new ResponseEntity<>(event, HttpStatus.CREATED);
 	}
@@ -121,6 +121,12 @@ public class EventController {
 		event.add(tournaments);
 		return event;
 	}
+	
+	private Event addHATEOASLinkTwitchChannel (Event event){
+		Link channel = new Link("http://www.twitch.tv/"+event.getChannel().toLowerCase()).withRel("channel");
+		event.add(channel);
+		return event;
+	}
 
 	// Optional Checkers
 	private Long getStartOptionalAsLong(Optional<Long> start) {
@@ -134,7 +140,7 @@ public class EventController {
 		if (end.isPresent()) {
 			return end.get();
 		}
-		return System.currentTimeMillis() + (ONE_DAY_MILLIS * DEFAULT_DAYS_END);
+		return (System.currentTimeMillis() + (END_DEFAULT_MILLIS));
 	}
 
 	private String getStringOptionalAsString(Optional<String> stringOptional) {
